@@ -1,0 +1,22 @@
+Quantized engine: fbgemm
+CPU threads: 8
+Classes: 200
+Train calibration samples: 90,000
+Benchmark samples: 10,000
+
+=== PTQ Evaluation Summary ===
+Teacher benchmark acc   : 82.19
+Float student acc       : 70.70%
+Float student loss      : 1.4145
+Float student latency   : 11.805 ms/img
+Float student throughput: 92.18 img/s
+Float student size      : 43.10 MB
+INT8 student acc        : 70.37%
+INT8 student loss       : 1.4322
+INT8 student latency    : 5.434 ms/img
+INT8 student throughput : 217.78 img/s
+INT8 student size       : 10.89 MB
+Compression ratio       : 3.96x
+
+Saved JSON: /data/pjiang18/SLP/ModelCompression/results/tinyimagenet_int8_ptq_results.json
+Saved CSV : /data/pjiang18/SLP/ModelCompression/results/tinyimagenet_int8_ptq_results.csv
