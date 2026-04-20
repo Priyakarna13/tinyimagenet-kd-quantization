@@ -4,7 +4,7 @@ A complete deep learning model compression pipeline using Knowledge Distillation
 
 ---
 
-## 🚀 Results Summary
+## Results Summary
 
 | Model | Accuracy (%) | Size (MB) | Latency (ms/img) | Throughput (img/s) |
 |---|---|---|---|---|
@@ -19,7 +19,7 @@ A complete deep learning model compression pipeline using Knowledge Distillation
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 .
@@ -38,7 +38,7 @@ A complete deep learning model compression pipeline using Knowledge Distillation
 
 ---
 
-## ⚙️ Setup Instructions
+## Setup Instructions
 
 ### 1. Clone the Repository
 
@@ -91,7 +91,7 @@ Evaluates both the float student and INT8 quantized student.
 
 ---
 
-## 📊 Outputs
+## Outputs
 
 | Directory | Contents |
 |---|---|
@@ -101,7 +101,7 @@ Evaluates both the float student and INT8 quantized student.
 
 ---
 
-## 🧠 Key Techniques
+## Key Techniques
 
 - **Transfer Learning** — Pretrained ResNet backbone
 - **Knowledge Distillation** — Soft targets combined with hard labels
@@ -110,7 +110,7 @@ Evaluates both the float student and INT8 quantized student.
 
 ---
 
-## ⚠️ Notes
+## Notes
 
 - Dataset is not included due to size constraints
 - Model checkpoints (`.pth`) are not included due to GitHub file limits
@@ -118,7 +118,7 @@ Evaluates both the float student and INT8 quantized student.
 
 ---
 
-## 📌 Conclusion
+## Conclusion
 
 This project demonstrates an effective pipeline to compress deep learning models, maintain reasonable accuracy, and improve deployment efficiency — making it suitable for resource-constrained production environments.
 
