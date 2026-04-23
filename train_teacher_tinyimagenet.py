@@ -66,6 +66,70 @@ def save_csv(path: str, rows: List[dict]) -> None:
         writer.writeheader()
         writer.writerows(rows)
 
+def get_file_size_mb(path: str) -> float:
+    return os.path.getsize(path) / (1024 ** 2)
+
+
+@torch.inference_mode()
+def benchmark_throughput(model: nn.Module, loader: DataLoader, device: torch.device) -> float:
+    model.eval()
+    total = 0
+    start = time.perf_counter()
+
+    for inputs, _ in loader:
+        inputs = inputs.to(device, non_blocking=True)
+        with autocast():
+            _ = model(inputs)
+        total += inputs.size(0)
+
+    elapsed = time.perf_counter() - start
+    return total / max(elapsed, 1e-8)
+
+
+@torch.inference_mode()
+def benchmark_latency_ms(
+    model: nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    warmup_batches: int = 20,
+    measure_batches: int = 100,
+) -> Tuple[float, float]:
+    model.eval()
+    it = iter(loader)
+
+    # Warmup
+    for _ in range(warmup_batches):
+        try:
+            inputs, _ = next(it)
+        except StopIteration:
+            it = iter(loader)
+            inputs, _ = next(it)
+
+        inputs = inputs.to(device, non_blocking=True)
+        torch.cuda.synchronize()
+        with autocast():
+            _ = model(inputs)
+        torch.cuda.synchronize()
+
+    # Measure
+    latencies = []
+    for _ in range(measure_batches):
+        try:
+            inputs, _ = next(it)
+        except StopIteration:
+            it = iter(loader)
+            inputs, _ = next(it)
+
+        inputs = inputs.to(device, non_blocking=True)
+        torch.cuda.synchronize()
+        start = time.perf_counter()
+        with autocast():
+            _ = model(inputs)
+        torch.cuda.synchronize()
+        latencies.append((time.perf_counter() - start) * 1000.0)
+
+    return float(np.mean(latencies)), float(np.std(latencies))
+
 
 @torch.no_grad()
 def evaluate(model: nn.Module, loader: DataLoader, device: torch.device, criterion: nn.Module):
@@ -288,6 +352,26 @@ def main():
         drop_last=False,
         persistent_workers=(cfg.num_workers > 0),
     )
+    
+    benchmark_tp_loader = DataLoader(
+        benchmark_dataset,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        pin_memory=True,
+        drop_last=False,
+        persistent_workers=(cfg.num_workers > 0),
+    )
+
+    benchmark_latency_loader = DataLoader(
+        benchmark_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        pin_memory=True,
+        drop_last=False,
+        persistent_workers=(cfg.num_workers > 0),
+    )
 
     num_classes = len(train_dataset.classes)
     print(f"Train: {len(train_idx):,} | Val: {len(internal_val_idx):,} | Benchmark: {len(benchmark_dataset):,}")
@@ -435,7 +519,20 @@ def main():
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
 
+    benchmark_start = time.time()
     benchmark_loss, benchmark_acc = evaluate(model, benchmark_loader, device, criterion)
+    benchmark_eval_time_sec = time.time() - benchmark_start
+
+    benchmark_tp = benchmark_throughput(model, benchmark_tp_loader, device)
+    benchmark_latency, benchmark_latency_std = benchmark_latency_ms(
+        model,
+        benchmark_latency_loader,
+        device,
+        warmup_batches=20,
+        measure_batches=100,
+    )
+
+    checkpoint_size_mb = get_file_size_mb(checkpoint_path)
 
     final_summary = {
         "config": asdict(cfg),
@@ -445,6 +542,12 @@ def main():
         "best_epoch": best_epoch,
         "benchmark_loss": benchmark_loss,
         "benchmark_acc": benchmark_acc,
+        "benchmark_latency_ms": benchmark_latency,
+        "benchmark_latency_std_ms": benchmark_latency_std,
+        "benchmark_throughput_img_s": benchmark_tp,
+        "benchmark_eval_time_sec": benchmark_eval_time_sec,
+        "checkpoint_size_mb": checkpoint_size_mb,
+        "params_M": num_params,
         "total_train_time_sec": total_train_time,
         "total_wall_time_sec": total_wall_time,
         "peak_mem_gb": peak_mem_bytes / (1024 ** 3),
@@ -461,6 +564,8 @@ def main():
     }
 
     save_json(results_json, final_summary)
+    summary_csv = os.path.join(RESULTS_DIR, "tinyimagenet_teacher_final_summary.csv")
+    save_csv(summary_csv, [final_summary])
 
     print(f"\nBest internal val loss : {best_val_loss:.4f} at epoch {best_epoch}")
     print(f"Best internal val acc  : {best_val_acc:.2f}%")
@@ -471,6 +576,10 @@ def main():
     print(f"Peak GPU memory        : {final_summary['peak_mem_gb']:.2f} GB")
     print(f"Avg imgs/sec           : {np.mean([h['imgs_per_sec'] for h in history]):.0f}")
     print(f"Checkpoint             : {checkpoint_path}")
+    print(f"Benchmark latency      : {benchmark_latency:.3f} ms/img")
+    print(f"Benchmark throughput   : {benchmark_tp:.2f} img/s")
+    print(f"Checkpoint size        : {checkpoint_size_mb:.2f} MB")
+    print(f"Params                 : {num_params:.2f} M")
 
 
 if __name__ == "__main__":

@@ -7,10 +7,18 @@
 #SBATCH -G a100:1
 #SBATCH -o /data/pjiang18/SLP/ModelCompression/logs/teacher_%j.out
 #SBATCH -e /data/pjiang18/SLP/ModelCompression/logs/teacher_%j.err
-#SBATCH --export=NONE
+#SBATCH --export=ALL
 
 module load mamba/latest
 source activate /data/pjiang18/SLP/envs/llm-bench
+
+# System stability tweaks
+export OMP_NUM_THREADS=12
+export MKL_NUM_THREADS=12
+export CUDA_VISIBLE_DEVICES=0
+export CUDA_LAUNCH_BLOCKING=1
+
+ulimit -n 4096
 
 cd /data/pjiang18/SLP/ModelCompression
 
